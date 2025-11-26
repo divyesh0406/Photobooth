@@ -1,0 +1,173 @@
+import streamlit as st
+from PIL import Image
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import re
+import io
+
+# --- CONFIGURATION ---
+# Ideally, store these in st.secrets for production apps
+SENDER_EMAIL = "@gmail.com" ## Add your sender email here
+SENDER_PASSWORD = "" ## Add your app password here
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+
+# --- PAGE CONFIGURATION ---
+st.set_page_config(page_title="Streamlit Photo Booth", page_icon="📸", layout="centered")
+
+# --- SESSION STATE INITIALIZATION ---
+# This keeps track of data across re-runs
+if 'step' not in st.session_state:
+    st.session_state.step = 1
+if 'user_email' not in st.session_state:
+    st.session_state.user_email = ""
+if 'captured_images' not in st.session_state:
+    st.session_state.captured_images = [] # Stores image bytes
+
+# --- HELPER FUNCTIONS ---
+
+def validate_email(email):
+    regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+    return re.fullmatch(regex, email)
+
+def send_email(to_emails, images_to_send):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = ", ".join(to_emails)
+        msg['Subject'] = "📸 Your Streamlit Photo Booth Pictures!"
+        
+        body = "Here are the photos you selected from your session."
+        msg.attach(MIMEText(body, 'plain'))
+
+        for i, img_bytes in enumerate(images_to_send):
+            # Create a MIME image object from the bytes
+            image_data = MIMEImage(img_bytes, name=f"photo_{i+1}.jpg")
+            msg.attach(image_data)
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.sendmail(SENDER_EMAIL, to_emails, msg.as_string())
+        server.quit()
+        return True, "Email sent successfully!"
+    except Exception as e:
+        return False, str(e)
+
+def reset_app():
+    st.session_state.step = 1
+    st.session_state.captured_images = []
+    st.session_state.user_email = ""
+
+# --- APP FLOW ---
+
+st.title("📸 Streamlit Photo Booth")
+
+# === STEP 1: LOGIN ===
+if st.session_state.step == 1:
+    st.subheader("Step 1: Enter your Email")
+    
+    email_input = st.text_input("Email Address", placeholder="you@example.com")
+    
+    if st.button("Start Session"):
+        if validate_email(email_input):
+            st.session_state.user_email = email_input
+            st.session_state.step = 2
+            st.rerun()
+        else:
+            st.error("Please enter a valid email address.")
+
+# === STEP 2: CAPTURE ===
+elif st.session_state.step == 2:
+    st.subheader("Step 2: Capture Photos")
+    st.write(f"Logged in as: **{st.session_state.user_email}**")
+
+    # The Camera Input
+    # Note: Streamlit re-runs the script when a photo is taken.
+    img_buffer = st.camera_input("Take a picture")
+
+    if img_buffer is not None:
+        # Convert buffer to bytes
+        bytes_data = img_buffer.getvalue()
+        
+        # Check if this exact image is already in our list to prevent duplicates on re-runs
+        if bytes_data not in st.session_state.captured_images:
+            st.session_state.captured_images.append(bytes_data)
+            st.toast("Photo saved!", icon="✅")
+
+    # Display Gallery of Captured Images
+    if st.session_state.captured_images:
+        st.write("---")
+        st.write(f"**Captured: {len(st.session_state.captured_images)} photos**")
+        
+        # Display in a grid
+        cols = st.columns(3)
+        for i, img_data in enumerate(st.session_state.captured_images):
+            with cols[i % 3]:
+                st.image(img_data, caption=f"Photo {i+1}", use_column_width=True)
+
+    st.write("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Clear All Photos"):
+            st.session_state.captured_images = []
+            st.rerun()
+    with col2:
+        if st.button("Proceed to Review", type="primary"):
+            if not st.session_state.captured_images:
+                st.warning("Take at least one photo first!")
+            else:
+                st.session_state.step = 3
+                st.rerun()
+
+# === STEP 3: SELECT & EMAIL ===
+elif st.session_state.step == 3:
+    st.subheader("Step 3: Select & Send")
+    
+    # Selection Form
+    with st.form("selection_form"):
+        st.write("Select the photos you want to keep:")
+        
+        # Create a dictionary to store boolean states of checkboxes
+        selected_indices = []
+        
+        # Grid layout for selection
+        cols = st.columns(3)
+        for i, img_data in enumerate(st.session_state.captured_images):
+            with cols[i % 3]:
+                st.image(img_data, use_column_width=True)
+                # Checkbox for this image
+                if st.checkbox(f"Keep Photo {i+1}", value=True, key=f"chk_{i}"):
+                    selected_indices.append(i)
+        
+        st.write("---")
+        st.write("### Email Details")
+        
+        # Recipient Input
+        recipients = st.text_input("Send to (comma separated)", value=st.session_state.user_email)
+        
+        submitted = st.form_submit_button("Send Photos", type="primary")
+        
+        if submitted:
+            if not selected_indices:
+                st.error("Please select at least one photo to send.")
+            else:
+                # Filter images
+                final_images = [st.session_state.captured_images[i] for i in selected_indices]
+                recipient_list = [r.strip() for r in recipients.split(",")]
+                
+                with st.spinner("Sending email..."):
+                    success, message = send_email(recipient_list, final_images)
+                
+                if success:
+                    st.success(message)
+                    st.balloons()
+                    # Optional: Reset button appears outside form
+                else:
+                    st.error(f"Error: {message}")
+
+    if st.button("Start Over"):
+        reset_app()
+        st.rerun()
