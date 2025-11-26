@@ -8,27 +8,20 @@ import re
 import io
 import base64
 
-# --- CONFIGURATION ---
-# Ideally, store these in st.secrets for production apps
 SENDER_EMAIL = "@gmail.com"
 SENDER_PASSWORD = "PASSWORD_HERE"  # Replace with your app password 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 BACKGROUND_IMAGE_PATH = "USCLogo.png"
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Streamlit Photo Booth", page_icon="📸", layout="centered")
 
-# --- SESSION STATE INITIALIZATION ---
-# This keeps track of data across re-runs
 if 'step' not in st.session_state:
     st.session_state.step = 1
 if 'user_email' not in st.session_state:
     st.session_state.user_email = ""
 if 'captured_images' not in st.session_state:
-    st.session_state.captured_images = [] # Stores image bytes
-
-# --- HELPER FUNCTIONS ---
+    st.session_state.captured_images = [] 
 
 def add_bg_from_local(image_file):
     with open(image_file, "rb") as f:
@@ -39,7 +32,7 @@ def add_bg_from_local(image_file):
         <style>
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
-            background-size: contain;
+            background-size: cover;
             background-position: center center;
             background-repeat: no-repeat;
             background-attachment: fixed;
@@ -47,7 +40,7 @@ def add_bg_from_local(image_file):
         /* Make main container semi-transparent to show BG */
         .main .block-container {{
             background-color: rgba(255, 255, 255, 0.90);
-            padding: 2rem;
+            padding: rem;
             border-radius: 10px;
         }}
         </style>
@@ -88,9 +81,6 @@ def reset_app():
     st.session_state.captured_images = []
     st.session_state.user_email = ""
 
-# --- APP FLOW ---
-
-# Add background image
 try:
     add_bg_from_local(BACKGROUND_IMAGE_PATH)
 except FileNotFoundError:
@@ -98,7 +88,6 @@ except FileNotFoundError:
 
 st.title("📸 Streamlit Photo Booth")
 
-# === STEP 1: LOGIN ===
 if st.session_state.step == 1:
     st.subheader("Step 1: Enter your Email")
     
@@ -112,30 +101,23 @@ if st.session_state.step == 1:
         else:
             st.error("Please enter a valid email address.")
 
-# === STEP 2: CAPTURE ===
 elif st.session_state.step == 2:
     st.subheader("Step 2: Capture Photos")
     st.write(f"Logged in as: **{st.session_state.user_email}**")
 
-    # The Camera Input
-    # Note: Streamlit re-runs the script when a photo is taken.
     img_buffer = st.camera_input("Take a picture")
 
     if img_buffer is not None:
-        # Convert buffer to bytes
         bytes_data = img_buffer.getvalue()
         
-        # Check if this exact image is already in our list to prevent duplicates on re-runs
         if bytes_data not in st.session_state.captured_images:
             st.session_state.captured_images.append(bytes_data)
             st.toast("Photo saved!", icon="✅")
 
-    # Display Gallery of Captured Images
     if st.session_state.captured_images:
         st.write("---")
         st.write(f"**Captured: {len(st.session_state.captured_images)} photos**")
         
-        # Display in a grid
         cols = st.columns(3)
         for i, img_data in enumerate(st.session_state.captured_images):
             with cols[i % 3]:
@@ -155,30 +137,24 @@ elif st.session_state.step == 2:
                 st.session_state.step = 3
                 st.rerun()
 
-# === STEP 3: SELECT & EMAIL ===
 elif st.session_state.step == 3:
     st.subheader("Step 3: Select & Send")
     
-    # Selection Form
     with st.form("selection_form"):
         st.write("Select the photos you want to keep:")
         
-        # Create a dictionary to store boolean states of checkboxes
         selected_indices = []
         
-        # Grid layout for selection
         cols = st.columns(3)
         for i, img_data in enumerate(st.session_state.captured_images):
             with cols[i % 3]:
                 st.image(img_data, use_container_width=True)
-                # Checkbox for this image
                 if st.checkbox(f"Keep Photo {i+1}", value=True, key=f"chk_{i}"):
                     selected_indices.append(i)
         
         st.write("---")
         st.write("### Email Details")
         
-        # Recipient Input
         recipients = st.text_input("Send to (comma separated)", value=st.session_state.user_email)
         
         submitted = st.form_submit_button("Send Photos", type="primary")
@@ -187,7 +163,6 @@ elif st.session_state.step == 3:
             if not selected_indices:
                 st.error("Please select at least one photo to send.")
             else:
-                # Filter images
                 final_images = [st.session_state.captured_images[i] for i in selected_indices]
                 recipient_list = [r.strip() for r in recipients.split(",")]
                 
@@ -197,7 +172,7 @@ elif st.session_state.step == 3:
                 if success:
                     st.success(message)
                     st.balloons()
-                    # Optional: Reset button appears outside form
+
                 else:
                     st.error(f"Error: {message}")
 
