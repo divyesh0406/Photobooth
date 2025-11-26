@@ -8,10 +8,12 @@ import re
 import io
 import base64
 
+
+
 # --- CONFIGURATION ---
 # Ideally, store these in st.secrets for production apps
-SENDER_EMAIL = "@gmail.com"
-SENDER_PASSWORD = "PASSWORD_HERE"  # Replace with your app password 
+SENDER_EMAIL = "xu887599@gmail.com"
+SENDER_PASSWORD = "gvfm vomn okcw ldgo"  # Replace with your app password 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 BACKGROUND_IMAGE_PATH = "USCLogo.png"
@@ -39,7 +41,7 @@ def add_bg_from_local(image_file):
         <style>
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
-            background-size: contain;
+            background-size: cover;
             background-position: center center;
             background-repeat: no-repeat;
             background-attachment: fixed;
@@ -119,17 +121,21 @@ elif st.session_state.step == 2:
 
     # The Camera Input
     # Note: Streamlit re-runs the script when a photo is taken.
-    img_buffer = st.camera_input("Take a picture")
+    if 'camera_key' not in st.session_state:
+        st.session_state.camera_key = 0
+    
+    # Camera widget with dynamic key to auto-clear after saving
+    img_buffer = st.camera_input("Take a picture", key=f"camera_{st.session_state.camera_key}")
 
     if img_buffer is not None:
-        # Convert buffer to bytes
         bytes_data = img_buffer.getvalue()
-        
         # Check if this exact image is already in our list to prevent duplicates on re-runs
         if bytes_data not in st.session_state.captured_images:
             st.session_state.captured_images.append(bytes_data)
             st.toast("Photo saved!", icon="✅")
-
+            # Increment camera key to reset widget
+            st.session_state.camera_key += 1
+            st.rerun()
     # Display Gallery of Captured Images
     if st.session_state.captured_images:
         st.write("---")
