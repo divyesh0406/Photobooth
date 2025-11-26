@@ -6,13 +6,15 @@ from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 import re
 import io
+import base64
 
 # --- CONFIGURATION ---
 # Ideally, store these in st.secrets for production apps
-SENDER_EMAIL = "@gmail.com" ## Add your sender email here
-SENDER_PASSWORD = "" ## Add your app password here
+SENDER_EMAIL = "@gmail.com"
+SENDER_PASSWORD = "PASSWORD_HERE"  # Replace with your app password 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+BACKGROUND_IMAGE_PATH = "USCLogo.png"
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Streamlit Photo Booth", page_icon="📸", layout="centered")
@@ -27,6 +29,31 @@ if 'captured_images' not in st.session_state:
     st.session_state.captured_images = [] # Stores image bytes
 
 # --- HELPER FUNCTIONS ---
+
+def add_bg_from_local(image_file):
+    with open(image_file, "rb") as f:
+        data = f.read()
+    bin_str = base64.b64encode(data).decode()
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-size: contain;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        /* Make main container semi-transparent to show BG */
+        .main .block-container {{
+            background-color: rgba(255, 255, 255, 0.90);
+            padding: 2rem;
+            border-radius: 10px;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 def validate_email(email):
     regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
@@ -62,6 +89,12 @@ def reset_app():
     st.session_state.user_email = ""
 
 # --- APP FLOW ---
+
+# Add background image
+try:
+    add_bg_from_local(BACKGROUND_IMAGE_PATH)
+except FileNotFoundError:
+    st.error(f"Background image '{BACKGROUND_IMAGE_PATH}' not found. Please ensure it's in the same directory.")
 
 st.title("📸 Streamlit Photo Booth")
 
@@ -106,7 +139,7 @@ elif st.session_state.step == 2:
         cols = st.columns(3)
         for i, img_data in enumerate(st.session_state.captured_images):
             with cols[i % 3]:
-                st.image(img_data, caption=f"Photo {i+1}", use_column_width=True)
+                st.image(img_data, caption=f"Photo {i+1}", use_container_width=True)
 
     st.write("---")
     col1, col2 = st.columns(2)
@@ -137,7 +170,7 @@ elif st.session_state.step == 3:
         cols = st.columns(3)
         for i, img_data in enumerate(st.session_state.captured_images):
             with cols[i % 3]:
-                st.image(img_data, use_column_width=True)
+                st.image(img_data, use_container_width=True)
                 # Checkbox for this image
                 if st.checkbox(f"Keep Photo {i+1}", value=True, key=f"chk_{i}"):
                     selected_indices.append(i)
