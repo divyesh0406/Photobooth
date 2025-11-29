@@ -12,8 +12,8 @@ import base64
 
 # --- CONFIGURATION ---
 # Ideally, store these in st.secrets for production apps
-SENDER_EMAIL = "xu887599@gmail.com"
-SENDER_PASSWORD = "gvfm vomn okcw ldgo"  # Replace with your app password 
+SENDER_EMAIL = "YOUR EMAIL@gmail.com"
+SENDER_PASSWORD = "YOUR PASSWARD"  # Replace with your app password 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 BACKGROUND_IMAGE_PATH = "USCLogo.png"
